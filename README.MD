@@ -16,5 +16,5 @@ To add a QTFB object in QML, start by importing `net.asivery.Framebuffer 1.0`. T
 Such an object has the following properties:
 
 - framebufferID (required) - the ID of the framebuffer. This value will be used by the client to define which framebuffer it wants to access
-- allowsScaling (optional; default: false) - whether or not the image should be scaled to fit the parent object
+- allowScaling (optional; default: false) - whether or not the image should be scaled to fit the parent object
 
