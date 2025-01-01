@@ -1,3 +1,3 @@
 #pragma once
-#define CERR std::cerr << "[AppLoad]: "
-#define QDEBUG qDebug() << "[AppLoad]:"
+#define CERR std::cerr << "[QTFB]: "
+#define QDEBUG qDebug() << "[QTFB]:"
