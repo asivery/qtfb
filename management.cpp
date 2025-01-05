@@ -74,6 +74,9 @@ static bool createSHM(qtfb::management::ClientConnection *connection, int shmTyp
         case FBFMT_RMPP_RGBA8888:
             shmSize = RMPP_HEIGHT * RMPP_WIDTH * 4;
             break;
+        case FBFMT_RMPP_RGB565:
+            shmSize = RMPP_HEIGHT * RMPP_WIDTH * 2;
+            break;
         default:
             CERR << "Unknown SHM type" << shmType << std::endl;
             return false;
@@ -125,6 +128,12 @@ static bool createSHM(qtfb::management::ClientConnection *connection, int shmTyp
             break;
         case FBFMT_RMPP_RGBA8888:
             format = QImage::Format::Format_RGBA8888;
+            width = RMPP_WIDTH;
+            height = RMPP_HEIGHT;
+            shm = connection->shm;
+            break;
+        case FBFMT_RMPP_RGB565:
+            format = QImage::Format::Format_RGB16;
             width = RMPP_WIDTH;
             height = RMPP_HEIGHT;
             shm = connection->shm;
