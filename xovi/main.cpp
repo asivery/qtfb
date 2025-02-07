@@ -2,6 +2,7 @@
 #include <QQmlApplicationEngine>
 #include "FBController.h"
 #include "management.h"
+#include "xovi.h"
 
 extern "C" void _xovi_construct()
 {

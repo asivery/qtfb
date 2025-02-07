@@ -1,5 +1,4 @@
 version     0.1.0
-modulebase  main.cpp
 
 condition    _ZN3csl10devicelock10DeviceLockC1Ev
 import?     qt-resource-rebuilder$qmldiff_add_external_diff
