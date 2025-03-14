@@ -1,4 +1,8 @@
 use anyhow::{Error, Result};
+use libc::{
+    c_void, mmap, munmap, sockaddr_un, socket, AF_UNIX, MAP_FAILED, MAP_SHARED, PROT_READ,
+    PROT_WRITE, SOCK_SEQPACKET,
+};
 use std::ffi::CString;
 use std::fs::OpenOptions;
 use std::io;
@@ -7,13 +11,13 @@ use std::mem::transmute;
 use std::os::unix::io::{AsRawFd, RawFd};
 use std::ptr;
 use std::slice;
-use libc::{c_void, mmap, munmap, socket, sockaddr_un, AF_UNIX, PROT_READ, PROT_WRITE, SOCK_SEQPACKET, MAP_FAILED, MAP_SHARED};
 
 pub mod constants {
     pub const DEFAULT_SCENE: u32 = 245209899;
     pub const SOCKET_PATH: &str = "/tmp/qtfb.sock";
     pub const MESSAGE_INITIALIZE: u8 = 0;
     pub const MESSAGE_UPDATE: u8 = 1;
+    pub const MESSAGE_CUSTOM_INITIALIZE: u8 = 2;
     pub const UPDATE_ALL: i32 = 0;
     pub const UPDATE_PARTIAL: i32 = 1;
     pub const FBFMT_RM2FB: u8 = 0;
@@ -30,6 +34,15 @@ pub type FBKey = u32;
 struct InitMessageContents {
     framebuffer_key: FBKey,
     framebuffer_type: u8,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+struct CustomInitMessageContents {
+    framebuffer_key: FBKey,
+    framebuffer_type: u8,
+    width: u16,
+    height: u16,
 }
 
 #[repr(C)]
@@ -53,6 +66,7 @@ struct UpdateRegionMessageContents {
 union ClientMessageContents {
     init: InitMessageContents,
     update: UpdateRegionMessageContents,
+    custom_init: CustomInitMessageContents,
 }
 
 #[repr(C)]
@@ -73,7 +87,11 @@ pub struct ClientConnection<'a> {
 }
 
 impl<'a> ClientConnection<'a> {
-    pub fn new(framebuffer_id: FBKey, shm_type: u8) -> Result<Self> {
+    pub fn new(
+        framebuffer_id: FBKey,
+        shm_type: u8,
+        custom_resolution: Option<(u16, u16)>,
+    ) -> Result<Self> {
         let fd = unsafe { socket(AF_UNIX, SOCK_SEQPACKET, 0) };
         if fd == -1 {
             return Err(Error::new(io::Error::last_os_error()));
@@ -85,7 +103,9 @@ impl<'a> ClientConnection<'a> {
         };
         let socket_path = CString::new(constants::SOCKET_PATH).unwrap();
         let path_bytes = socket_path.as_bytes_with_nul();
-        addr.sun_path[..path_bytes.len()].copy_from_slice(unsafe { std::slice::from_raw_parts(transmute(path_bytes.as_ptr()), path_bytes.len()) });
+        addr.sun_path[..path_bytes.len()].copy_from_slice(unsafe {
+            std::slice::from_raw_parts(transmute(path_bytes.as_ptr()), path_bytes.len())
+        });
 
         let connect_res = unsafe {
             libc::connect(
@@ -99,14 +119,28 @@ impl<'a> ClientConnection<'a> {
             return Err(Error::new(io::Error::last_os_error()));
         }
 
-        let init_message = ClientMessage {
-            msg_type: constants::MESSAGE_INITIALIZE,
-            contents: ClientMessageContents {
-                init: InitMessageContents {
-                    framebuffer_key: framebuffer_id,
-                    framebuffer_type: shm_type,
+        let init_message = if let Some((width, height)) = custom_resolution {
+            ClientMessage {
+                msg_type: constants::MESSAGE_CUSTOM_INITIALIZE,
+                contents: ClientMessageContents {
+                    custom_init: CustomInitMessageContents {
+                        framebuffer_key: framebuffer_id,
+                        framebuffer_type: shm_type,
+                        width,
+                        height,
+                    },
                 },
-            },
+            }
+        } else {
+            ClientMessage {
+                msg_type: constants::MESSAGE_INITIALIZE,
+                contents: ClientMessageContents {
+                    init: InitMessageContents {
+                        framebuffer_key: framebuffer_id,
+                        framebuffer_type: shm_type,
+                    },
+                },
+            }
         };
 
         let send_res = unsafe {
@@ -161,14 +195,10 @@ impl<'a> ClientConnection<'a> {
             return Err(Error::new(io::Error::last_os_error()));
         }
 
-        let shm = unsafe {
-            slice::from_raw_parts_mut(shm_ptr as *mut u8, server_message.init.shm_size)
-        };
+        let shm =
+            unsafe { slice::from_raw_parts_mut(shm_ptr as *mut u8, server_message.init.shm_size) };
 
-        Ok(Self {
-            fd,
-            shm,
-        })
+        Ok(Self { fd, shm })
     }
 
     pub fn send_complete_update(&self) -> io::Result<()> {

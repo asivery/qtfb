@@ -1,7 +1,7 @@
 #include "qtfb-client.h"
 #include <iostream>
 
-qtfb::ClientConnection::ClientConnection(qtfb::FBKey framebufferID, uint8_t shmType){
+qtfb::ClientConnection::ClientConnection(qtfb::FBKey framebufferID, uint8_t shmType, std::optional<std::tuple<uint16_t, uint16_t>> customResolution){
     int sock = socket(AF_UNIX, SOCK_SEQPACKET, 0);
     if(sock == -1) {
         std::cout << "Failed to initialize the socket!" << std::endl;
@@ -17,13 +17,26 @@ qtfb::ClientConnection::ClientConnection(qtfb::FBKey framebufferID, uint8_t shmT
 
     // Ask to be connected to the main framebuffer.
     // Work in color (RMPP) mode
-    qtfb::ClientMessage initMessage = {
-        .type = MESSAGE_INITIALIZE,
-        .init = {
-            .framebufferKey = framebufferID,
-            .framebufferType = shmType,
-        },
-    };
+    qtfb::ClientMessage initMessage;
+    if(auto resolution = customResolution) {
+        initMessage = {
+            .type = MESSAGE_CUSTOM_INITIALIZE,
+            .customInit = {
+                .framebufferKey = framebufferID,
+                .framebufferType = shmType,
+                .width = std::get<0>(*resolution),
+                .height = std::get<1>(*resolution),
+            },
+        };
+    } else {
+        initMessage = {
+            .type = MESSAGE_INITIALIZE,
+            .init = {
+                .framebufferKey = framebufferID,
+                .framebufferType = shmType,
+            },
+        };
+    }
     if(send(sock, &initMessage, sizeof(initMessage), 0) == -1) {
         std::cout << "Failed to send init message!" << std::endl;
         exit(-3);
