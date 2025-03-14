@@ -12,6 +12,7 @@
 
 #define MESSAGE_INITIALIZE 0
 #define MESSAGE_UPDATE 1
+#define MESSAGE_CUSTOM_INITIALIZE 2
 
 #define FBFMT_RM2FB 0
 #define FBFMT_RMPP_RGB888 1
@@ -30,6 +31,13 @@ namespace qtfb {
         uint8_t framebufferType;
     };
 
+    struct CustomInitMessageContents {
+        FBKey framebufferKey;
+        uint8_t framebufferType;
+        uint16_t width;
+        uint16_t height;
+    };
+
     struct InitMessageResponseContents {
         int shmKeyDefined;
         size_t shmSize;
@@ -45,6 +53,7 @@ namespace qtfb {
         union {
             struct InitMessageContents init;
             struct UpdateRegionMessageContents update;
+            struct CustomInitMessageContents customInit;
         };
     };
 

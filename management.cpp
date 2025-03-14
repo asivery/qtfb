@@ -62,20 +62,26 @@ void qtfb::management::unregisterController(FBKey key) {
     CERR << "Unregistered framebuffer controller ID: " << key << std::endl;
 }
 
-static bool createSHM(qtfb::management::ClientConnection *connection, int shmType) {
+static bool createSHM(qtfb::management::ClientConnection *connection, int shmType, int width, int height) {
     size_t shmSize;
+    QImage::Format format;
+
     switch(shmType) {
         case FBFMT_RM2FB:
-            shmSize = RM2_HEIGHT * RM2_WIDTH * 2;
+            shmSize = height * width * 2;
+            format = QImage::Format::Format_RGB16;
             break;
         case FBFMT_RMPP_RGB888:
-            shmSize = RMPP_HEIGHT * RMPP_WIDTH * 3;
+            shmSize = height * width * 3;
+            format = QImage::Format::Format_RGB888;
             break;
         case FBFMT_RMPP_RGBA8888:
-            shmSize = RMPP_HEIGHT * RMPP_WIDTH * 4;
+            shmSize = height * width * 4;
+            format = QImage::Format::Format_RGBA8888;
             break;
         case FBFMT_RMPP_RGB565:
-            shmSize = RMPP_HEIGHT * RMPP_WIDTH * 2;
+            shmSize = height * width * 2;
+            format = QImage::Format::Format_RGB16;
             break;
         default:
             CERR << "Unknown SHM type" << shmType << std::endl;
@@ -110,47 +116,40 @@ static bool createSHM(qtfb::management::ClientConnection *connection, int shmTyp
     }
     CERR << "Defined SHM size" << shmSize << "at" << connection->shm << std::endl;
     // We have the SHM defined.
-    QImage::Format format;
-    int width, height;
-    unsigned char *shm;
-    switch(shmType){
-        case FBFMT_RM2FB:
-            format = QImage::Format::Format_RGB16;
-            width = RM2_WIDTH;
-            height = RM2_HEIGHT;
-            shm = connection->shm;
-            break;
-        case FBFMT_RMPP_RGB888:
-            format = QImage::Format::Format_RGB888;
-            width = RMPP_WIDTH;
-            height = RMPP_HEIGHT;
-            shm = connection->shm;
-            break;
-        case FBFMT_RMPP_RGBA8888:
-            format = QImage::Format::Format_RGBA8888;
-            width = RMPP_WIDTH;
-            height = RMPP_HEIGHT;
-            shm = connection->shm;
-            break;
-        case FBFMT_RMPP_RGB565:
-            format = QImage::Format::Format_RGB16;
-            width = RMPP_WIDTH;
-            height = RMPP_HEIGHT;
-            shm = connection->shm;
-            break;
-    }
-    connection->image = new QImage(shm, width, height, format);
+    connection->image = new QImage(connection->shm, width, height, format);
 
     return true;
 }
 
-static int handleInitialize(qtfb::management::ClientConnection *connection, qtfb::ClientMessage *inbound) {
+static bool createDefaultSHM(qtfb::management::ClientConnection *connection, int shmType) {
+    switch(shmType) {
+        case FBFMT_RM2FB:
+            return createSHM(connection, shmType, RM2_WIDTH, RM2_HEIGHT);
+        case FBFMT_RMPP_RGB888:
+        case FBFMT_RMPP_RGBA8888:
+        case FBFMT_RMPP_RGB565:
+            return createSHM(connection, shmType, RMPP_WIDTH, RMPP_HEIGHT);
+        default:
+            return createSHM(connection, shmType, -1, -1);
+    }
+}
+
+static int handleInitialize(qtfb::management::ClientConnection *connection, qtfb::ClientMessage *inbound, int messageType) {
     if(qtfb::management::connections.find(inbound->init.framebufferKey) != qtfb::management::connections.end()) {
         CERR << "Violation: Tried to connect to an already used framebuffer." << std::endl;
         return RESP_ERR;
     }
     connection->fbKey = inbound->init.framebufferKey;
-    if(!createSHM(connection, inbound->init.framebufferType)) {
+    bool result = false;
+    switch(messageType) {
+        case MESSAGE_CUSTOM_INITIALIZE:
+            result = createSHM(connection, inbound->customInit.framebufferType, inbound->customInit.width, inbound->customInit.height);
+            break;
+        case MESSAGE_INITIALIZE:
+            result = createDefaultSHM(connection, inbound->init.framebufferType);
+            break;
+    }
+    if(!result) {
         return RESP_ERR;
     }
     // Send the SHM key over to the client
@@ -220,7 +219,8 @@ static void managementClientThread(int incomingFD){
         int status;
         switch(inboundMessage.type) {
             case MESSAGE_INITIALIZE:
-                status = handleInitialize(&connection, &inboundMessage);
+            case MESSAGE_CUSTOM_INITIALIZE:
+                status = handleInitialize(&connection, &inboundMessage, inboundMessage.type);
                 break;
             case MESSAGE_UPDATE:
                 status = handleUpdateRegion(&connection, &inboundMessage);
