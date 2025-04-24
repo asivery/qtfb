@@ -2,7 +2,7 @@ QT     += core gui qml quickcontrols2
 
 TARGET = qtfb
 TEMPLATE = lib
-CONFIG += shared
+CONFIG += shared plugin no_plugin_name_prefix
 
 xoviextension.target = xovi.cpp
 xoviextension.commands = python3 $$(XOVI_REPO)/util/xovigen.py -o xovi.cpp -H xovi.h qtfb.xovi
