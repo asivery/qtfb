@@ -1,5 +1,7 @@
 version     0.1.0
 
+depends-on  qt-resource-rebuilder:0.2.0
+
 condition    _ZN3csl10devicelock10DeviceLockC1Ev
 import?     qt-resource-rebuilder$qmldiff_add_external_diff
 resource    rootfb:root-fb.qmd
