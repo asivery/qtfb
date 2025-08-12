@@ -1,5 +1,7 @@
 # QTFB
 
+**Archived repository: QTFB has been merged into [appload](https://github.com/asivery/rm-appload)**
+
 An implementation of a QT-based "framebuffer" (in reality it's just a QPainter drawing a shared memory region)
 
 Example applications and clients are available in the `example-apps` and `clients` directories.
